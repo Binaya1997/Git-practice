@@ -1,2 +1,2 @@
 # Git-practice
-Hello user this is git first project.
+Hello user this is my git first project.

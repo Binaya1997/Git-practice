@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#To check free swap emory
+
+free -m
+
+#To check disk free
+
+df -Ph
+
+#to check free memory
+
+du -sh
+
+ls -la

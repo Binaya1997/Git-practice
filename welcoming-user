@@ -1,0 +1,7 @@
+#!/bin/bash
+
+read -p "Please enter yoour name : " name
+
+echo "Hi, welcome to world $name."
+
+echo "Please code as you want"

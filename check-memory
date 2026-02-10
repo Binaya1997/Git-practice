@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#To check free memory
+
+free -m
+
+#To check disk free
+
+df -Ph
+
+#to check free memory
+
+du -sh

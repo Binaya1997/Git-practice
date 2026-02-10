@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#To check free memory
+#To check free swap emory
 
 free -m
 
@@ -11,3 +11,5 @@ df -Ph
 #to check free memory
 
 du -sh
+
+ls -la

@@ -1,0 +1,105 @@
+For a GitHub repository for your AI Commit tool, here is the standard, clean project structure and the exact file names to use:
+
+### Recommended Repository Structure
+
+```text
+git-ai/
+├── ai_commit.py          <-- Main Python script (or git_ai.py)
+├── README.md             <-- Documentation (displayed on your repo homepage)
+├── requirements.txt      <-- Python dependencies
+├── .gitignore            <-- Files Git must NOT upload (prevents leaking keys!)
+├── .env.example          <-- Template showing required environment variables
+└── LICENSE               <-- Open-source license (e.g., MIT)
+
+```
+
+---
+
+### File Breakdown & Contents
+
+#### 1. `ai_commit.py` (or `git_ai.py`)
+
+* **Role:** The main source code you created.
+* **Tip:** In Python, lowercase with underscores (`ai_commit.py` or `git_ai.py`) is standard.
+
+#### 2. `README.md` *(Most Important)*
+
+GitHub renders this file directly on the front page of your repository. It explains what the tool does, how to set up the API key, and how to use `git ai`.
+
+#### 3. `requirements.txt`
+
+Allows anyone (or you on another machine) to install dependencies with `pip install -r requirements.txt`.
+
+* **Contents:**
+```text
+google-genai
+
+```
+
+
+
+#### 4. `.gitignore` *(Crucial for Security)*
+
+This ensures you never accidentally commit your API keys, local virtual environments, or cache files to public GitHub.
+
+* **Contents:**
+```text
+# Environment variables & secrets
+.env
+*.env
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+.ai-env/
+venv/
+.venv/
+
+# OS metadata
+.DS_Store
+
+```
+
+
+
+#### 5. `.env.example`
+
+A safe sample file demonstrating what environment variables are needed without exposing your real key.
+
+* **Contents:**
+```bash
+GEMINI_API_KEY="your_actual_api_key_here"
+
+```
+
+
+
+#### 6. `LICENSE`
+
+If you want to share it publicly on GitHub, an **MIT License** is standard and allows anyone to use, modify, and distribute your tool.
+
+---
+
+### How to Create These Files in Your VM
+
+You can create all the supporting files in one go inside your project directory:
+
+```bash
+cd ~/git-ai-demo
+
+# 1. Create requirements.txt
+echo "google-genai" > requirements.txt
+
+# 2. Create .gitignore
+cat << 'EOF' > .gitignore
+.env
+__pycache__/
+*.pyc
+.ai-env/
+venv/
+EOF
+
+# 3. Create .env.example
+echo 'GEMINI_API_KEY="your_api_key_here"' > .env.example
+
+```

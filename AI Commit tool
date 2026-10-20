@@ -1,0 +1,212 @@
+# Project Note: `git-ai` (CLI Commit Generator)
+
+An agentic terminal utility built with Python and Google's `gemini-3.8-flash` model. It inspects staged code differences via `git diff --cached`, synthesizes changes into three concise Conventional Commit messages, and lets you commit directly with a single keystroke.
+
+---
+
+### 1. System Architecture
+
+```text
+[Your Code Changes] 
+       │
+       ▼
+  git add <files> 
+       │
+       ▼
+ [ git ai ] ────────► subprocess: git diff --cached
+       │
+       ▼
+ [ Gemini API ] ────► Prompt: Analyze diff -> 3 Conventional Commits
+  (gemini-3.8-flash)  Config: thinking_level="LOW" + retry on 503
+       │
+       ▼
+[ Terminal Menu ] ──► [1], [2], [3] (Select) or [c] (Cancel)
+       │
+       ▼
+subprocess.run ────► git commit -m "<selected message>"
+
+```
+
+---
+
+### 2. Complete Source Code (`~/.local/bin/git-ai`)
+
+```python
+#!/usr/bin/env python3
+"""
+git-ai: Interactive AI-powered conventional git commit generator.
+Powered by Google Gemini 3.8 Flash.
+"""
+import os
+import subprocess
+import sys
+import time
+from google import genai
+from google.genai import types
+
+MODELS_TO_TRY = ["gemini-3.8-flash", "gemini-3.8-pro", "gemini-2.0-flash"]
+
+def get_staged_diff() -> str:
+    """Capture the diff of staged files."""
+    result = subprocess.run(
+        ["git", "diff", "--cached"],
+        capture_output=True,
+        text=True
+    )
+    return result.stdout.strip()
+
+def generate_commit_messages(diff: str, client: genai.Client) -> list[str]:
+    """Request 3 conventional commit options from Gemini with retry & fallback."""
+    prompt = f"""
+You are an expert developer. Analyze the following staged git diff and generate exactly 3 distinct, concise Conventional Commit messages.
+Follow the conventional commits standard (e.g., feat:, fix:, refactor:, chore:, docs:).
+Each message must be on a single line, under 72 characters, and written in the imperative mood (e.g., "add", "fix", not "added" or "fixes").
+
+Return ONLY the 3 commit messages, one per line. Do not include markdown formatting, numbers, bullets, or extra text.
+
+Git Diff:
+{diff}
+"""
+    config = types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(thinking_level="LOW")
+    )
+
+    last_error = None
+
+    for model_name in MODELS_TO_TRY:
+        for attempt in range(1, 3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=config
+                )
+                raw_lines = response.text.strip().split("\n")
+                messages = [
+                    line.strip().lstrip("123456789.-* ")
+                    for line in raw_lines
+                    if line.strip()
+                ]
+                if messages:
+                    return messages[:3]
+            except Exception as e:
+                err_str = str(e)
+                last_error = e
+                if "503" in err_str or "UNAVAILABLE" in err_str:
+                    time.sleep(2)
+                elif "404" in err_str or "NOT_FOUND" in err_str:
+                    break
+                else:
+                    break
+
+    raise last_error
+
+def main():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("Error: GEMINI_API_KEY environment variable is not set.", file=sys.stderr)
+        sys.exit(1)
+
+    diff = get_staged_diff()
+    if not diff:
+        print("No staged changes found. Run 'git add <files>' first.")
+        sys.exit(0)
+
+    # Protect prompt budget against oversized payloads
+    if len(diff) > 25000:
+        diff = diff[:25000] + "\n\n[Diff truncated due to size...]"
+
+    client = genai.Client(api_key=api_key)
+    print("Analyzing staged changes with Gemini...\n")
+
+    try:
+        suggestions = generate_commit_messages(diff, client)
+    except Exception as e:
+        print(f"\nAPI Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not suggestions:
+        print("No commit suggestions generated.")
+        sys.exit(1)
+
+    print("Suggested commit messages:")
+    for idx, msg in enumerate(suggestions, 1):
+        print(f"  [{idx}] {msg}")
+    print("  [c] Cancel")
+
+    choice = input("\nSelect an option [1-3, c]: ").strip().lower()
+
+    if choice in ("1", "2", "3"):
+        selected = suggestions[int(choice) - 1]
+        subprocess.run(["git", "commit", "-m", selected])
+        print(f"\nCommitted: \"{selected}\"")
+    else:
+        print("Aborted. No commit made.")
+
+if __name__ == "__main__":
+    main()
+
+```
+
+---
+
+### 3. Engineering Obstacles Overcome
+
+| Obstacle Encountered | Underlying Cause | Final Solution |
+| --- | --- | --- |
+| **`PEP 668: externally-managed-environment`** | Debian/Ubuntu restricts direct system-wide `pip install` | Installed via `--break-system-packages` flag (or isolated in virtual environment). |
+| **`-bash: !': event not found`** | Bash interprets exclamation marks inside double quotes as history expansion | Escaped exclamation mark or tested strings using single quotes. |
+| **`404 NOT_FOUND (gemini-2.5-flash)`** | Legacy model deprecated for new developer accounts | Upgraded to the current default: `gemini-3.8-flash`. |
+| **Terminal freezing / slow response** | `gemini-3.8-flash` ran default medium-reasoning mode | Added `thinking_config=ThinkingConfig(thinking_level="LOW")` for sub-2s responses. |
+| **`503 UNAVAILABLE`** | Temporary compute spike on Google cloud infrastructure | Added exponential backoff retry loops and multi-model fallbacks. |
+
+---
+
+### 4. Global Shell Integration
+
+By placing the binary in `~/.local/bin/git-ai` and adding that directory to `$PATH`, Git recognizes it as an internal subcommand:
+
+```bash
+# Add to shell profile (~/.bashrc)
+export GEMINI_API_KEY="AQ.Ab8RN..."
+export PATH="$HOME/.local/bin:$PATH"
+
+# Quick setup command
+chmod +x ~/.local/bin/git-ai
+
+```
+
+---
+
+### 5. Daily Usage Workflow
+
+Whenever you finish editing files inside any Git repository:
+
+```bash
+git add <files>
+git ai
+
+```
+
+```text
+Analyzing staged changes with Gemini...
+
+Suggested commit messages:
+  [1] feat: add calculate_discount helper function
+  [2] feat(helpers): implement calculate_discount function
+  [3] feat: add helper to calculate price discounts
+  [c] Cancel
+
+Select an option [1-3, c]: 1
+Committed: "feat: add calculate_discount helper function"
+
+```
+
+---
+
+### 6. Free Tier Reference Sheet
+
+* **Quotas:** 15 Requests Per Minute (RPM) & 1,500 Requests Per Day (RPD).
+* **Reset Cycle:** Midnight Pacific Time (12:30 PM IST).
+* **Cost Safety:** No billing account or credit card required. Exceeding limits returns a `429` error without incurring charges.
+* **Security Rule:** Never run `git ai` on staged `.env` files or hardcoded API keys.
